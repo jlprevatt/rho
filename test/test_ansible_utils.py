@@ -11,7 +11,7 @@
 
 import unittest
 
-from rho import scancommand
+from rho import ansible_utils
 from rho import utilities
 
 
@@ -26,7 +26,7 @@ class TestScanCommandLogging(unittest.TestCase):
             'key2': 'val2'
         }
         self.assertEqual(
-            scancommand.redact_dict(keys, a_dict),
+            ansible_utils.redact_dict(keys, a_dict),
             {
                 'key1': utilities.PASSWORD_MASKING,
                 'key2': 'val2'
@@ -49,7 +49,7 @@ class TestScanCommandLogging(unittest.TestCase):
             }
         }
         self.assertEqual(
-            scancommand.log_yaml_inventory('out message', inventory),
+            ansible_utils.log_yaml_inventory('out message', inventory),
             {
                 'alpha': {
                     'hosts': {

@@ -45,36 +45,3 @@ class TestScanCommand(unittest.TestCase):
                 'ansible_user': 'user',
                 'ansible_ssh_pass': 'pass',
                 'ansible_ssh_private_key_file': 'sshkey'}}}})
-
-    def test_process_ping_output(self):
-        """The output of a three-host scan"""
-        success, failed = scancommand.process_ping_output([
-            '192.168.50.11 | SUCCESS | rc=0 >>',
-            'Hello',
-            '192.168.50.12 | SUCCESS | rc=0 >>',
-            'Hello',
-            '192.168.50.10 | SUCCESS | rc=0 >>',
-            'Hello'])
-        self.assertEqual(success,
-                         set(['192.168.50.10',
-                              '192.168.50.11',
-                              '192.168.50.12']))
-        self.assertEqual(failed, set())
-
-    def test_process_ping_output_fail(self):
-        """The output of a three-host scan"""
-        success, failed = scancommand.process_ping_output([
-            '192.168.50.11 | UNREACHABLE! => {',
-            '     "changed": false,',
-            '     "msg": "Failed to connect to the host via ssh ...",',
-            '     "unreachable": true',
-            '    }',
-            'Hello',
-            '192.168.50.12 | SUCCESS | rc=0 >>',
-            'Hello',
-            '192.168.50.10 | SUCCESS | rc=0 >>',
-            'Hello'])
-        self.assertEqual(success,
-                         set(['192.168.50.10',
-                              '192.168.50.12']))
-        self.assertEqual(failed, set(['192.168.50.11']))
