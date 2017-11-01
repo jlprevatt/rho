@@ -12,6 +12,7 @@
 from __future__ import print_function
 
 import time
+import sys
 
 from getpass import getpass
 import pexpect
@@ -158,8 +159,8 @@ def run_with_vault(cmd_string, vault_pass, env=None, log_path=None,
 
         return child
     except pexpect.EOF:
-        print(str(result))
-        print('pexpect unexpected EOF')
+        print('Error: unexpected Ansible output')
+        sys.exit(1)
     except pexpect.TIMEOUT:
-        print(str(result))
-        print('pexpect timed out')
+        print('Error: unexpected Ansible output')
+        sys.exit(1)
