@@ -24,11 +24,11 @@ from rho.utilities import str_to_ascii
 # processed and the valid mapping as been figured out by
 # pinging.
 # pylint: disable=too-many-locals
-def make_inventory_dict(success_hosts, success_port_map, auth_map):
+def make_inventory_dict(hosts, port_map, auth_map):
     """Make the inventory for the scan, as a dict.
 
-    :param success_hosts: a list of hosts for the inventory
-    :param success_port_map: mapping from hosts to SSH ports
+    :param hosts: a list of hosts for the inventory
+    :param port_map: mapping from hosts to SSH ports
     :param auth_map: map from host IP to a list of auths it works with
 
     :returns: a dict with the structure:
@@ -49,9 +49,9 @@ def make_inventory_dict(success_hosts, success_port_map, auth_map):
 
     # Create section of successfully connected hosts
     alpha_hosts = {}
-    for host in success_hosts:
+    for host in hosts:
         ascii_host = str_to_ascii(host)
-        ascii_port = str_to_ascii(str(success_port_map[host]))
+        ascii_port = str_to_ascii(str(port_map[host]))
         host_vars = {'ansible_host': ascii_host,
                      'ansible_port': ascii_port}
         host_vars.update(
@@ -63,24 +63,28 @@ def make_inventory_dict(success_hosts, success_port_map, auth_map):
     return yml_dict
 
 
-def create_main_inventory(vault, success_hosts, success_port_map,
-                          auth_map, profile):
-    """Write an inventory file given the results of host discovery."""
+def create_main_inventory(vault, hosts, port_map, auth_map, path):
+    """Write an inventory file given the results of host discovery.
 
-    yml_dict = make_inventory_dict(success_hosts, success_port_map, auth_map)
-    hosts_yml = profile + utilities.PROFILE_HOSTS_SUFIX
-    hosts_yml_path = utilities.get_config_path(hosts_yml)
-    vault.dump_as_yaml_to_file(yml_dict, hosts_yml_path)
+    :param vault: an Ansible vault to encrypt the results.
+    :param hosts: a list of hosts in the inventory.
+    :param port_map: a mapping from hosts to SSH port numbers.
+    :param auth_map: a mapping from hosts to SSH credentials.
+    :param path: the path to write the inventory.
+    """
+
+    yml_dict = make_inventory_dict(hosts, port_map, auth_map)
+    vault.dump_as_yaml_to_file(yml_dict, path)
     ansible_utils.log_yaml_inventory('Main inventory', yml_dict)
 
 
-# pylint: disable=too-many-arguments, unused-argument
-def inventory_scan(hosts, facts_to_collect, report_path,
+# pylint: disable=too-many-arguments
+def inventory_scan(hosts_yml_path, facts_to_collect, report_path,
                    vault_pass, base_name, forks=None,
                    scan_dirs=None, log_path=None, verbosity=0):
     """Run an inventory scan.
 
-    :param hosts: iterable of hosts to scan.
+    :param hosts_yml_path: path to an Ansible inventory file to scan.
     :param facts_to_collect: a list of facts to collect.
     :param report_path: the path to write a report to.
     :param vault_pass: the vault password used to protect user data

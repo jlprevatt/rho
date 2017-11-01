@@ -273,7 +273,7 @@ class ScanCommand(CliCommand):
 
             inventory_scan.create_main_inventory(vault, success_hosts,
                                                  success_port_map, auth_map,
-                                                 profile)
+                                                 hosts_yml_path)
 
         elif os.path.isfile(hosts_yml_path):
             print("Profile '" + profile + "' has not been processed. " +
@@ -281,7 +281,7 @@ class ScanCommand(CliCommand):
             sys.exit(1)
 
         scan_succeeded = inventory_scan.inventory_scan(
-            None, self.facts_to_collect, report_path, vault_pass,
+            hosts_yml_path, self.facts_to_collect, report_path, vault_pass,
             profile, forks=forks, scan_dirs=self.options.scan_dirs,
             log_path=self.options.logfile,
             verbosity=self.verbosity)
