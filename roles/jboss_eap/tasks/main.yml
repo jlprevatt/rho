@@ -44,3 +44,8 @@
       register: jboss.eap.packages
       ignore_errors: yes
       when: '"jboss.eap.packages" in facts_to_collect'
+    - name: use locate to look for jboss-modules.jar
+      raw: locate jboss-modules.jar
+      register: jboss_eap_locate_jboss_modules_jar
+      ignore_errors: yes
+      when: '"jboss.eap.locate-jboss-modules-jar" in facts_to_collect'
