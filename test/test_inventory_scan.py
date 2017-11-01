@@ -16,15 +16,15 @@
 
 import unittest
 
-from rho import scancommand
+from rho import inventory_scan
 
 
 # pylint: disable=invalid-name
-class TestScanCommand(unittest.TestCase):
-    """Unit tests for scancommand.py."""
+class TestMakeInventoryDict(unittest.TestCase):
+    """Unit tests for inventory_scan.py."""
 
     def test_make_inventory_dict_one_host(self):
-        """Test scancommand.make_inventory_dict with just one host."""
+        """Test inventory_scan.make_inventory_dict with just one host."""
 
         auth = {
             'id': '1',
@@ -33,7 +33,7 @@ class TestScanCommand(unittest.TestCase):
             'password': 'pass',
             'ssh_key_file': 'sshkey'}
         self.assertEqual(
-            scancommand.make_inventory_dict(
+            inventory_scan.make_inventory_dict(
                 ['host_ip_1'],           # success_hosts
                 {'host_ip_1': '22'},     # success_port_map
                 {'host_ip_1': [auth]}),  # auth_map

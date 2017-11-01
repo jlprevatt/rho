@@ -15,19 +15,18 @@ from __future__ import print_function
 import os
 import sys
 import time
-import json
 from tempfile import NamedTemporaryFile
 from rho import utilities
 from rho.clicommand import CliCommand
 from rho.vault import get_vault_and_password
 from rho.utilities import (
-    multi_arg, _read_in_file, str_to_ascii, iteritems,
-    SCAN_LOG_PATH, PROFILE_HOSTS_SUFIX,
+    multi_arg, _read_in_file, iteritems,
+    PROFILE_HOSTS_SUFIX,
     PROFILE_HOST_AUTH_MAPPING_SUFFIX
 )
 from rho import host_discovery
+from rho import inventory_scan
 from rho import facts
-from rho import ansible_utils
 from rho.translation import _
 
 
@@ -76,60 +75,6 @@ def _create_hosts_auths_file(success_auth_map, profile):
                            '*********************************' \
                            '**************\n\n'
         host_auth_file.write(string_to_write)
-
-
-# Creates the filtered main inventory on which the custom
-# modules to collect facts are run. This inventory can be
-# used multiple times later after a profile has first been
-# processed and the valid mapping as been figured out by
-# pinging.
-# pylint: disable=too-many-locals
-def make_inventory_dict(success_hosts, success_port_map, auth_map):
-    """Make the inventory for the scan, as a dict.
-
-    :param success_hosts: a list of hosts for the inventory
-    :param success_port_map: mapping from hosts to SSH ports
-    :param auth_map: map from host IP to a list of auths it works with
-
-    :returns: a dict with the structure:
-
-        .. code-block:: python
-
-            {'alpha':
-                {'hosts':
-                    {'IP address 1': {'host-vars-1'},
-                     'IP address 2': {'host-vars-2'},
-                     # ...
-                    }
-                }
-            }
-    """
-
-    yml_dict = {}
-
-    # Create section of successfully connected hosts
-    alpha_hosts = {}
-    for host in success_hosts:
-        ascii_host = str_to_ascii(host)
-        ascii_port = str_to_ascii(str(success_port_map[host]))
-        host_vars = {'ansible_host': ascii_host,
-                     'ansible_port': ascii_port}
-        host_vars.update(
-            ansible_utils.auth_as_ansible_host_vars(auth_map[host][0]))
-        alpha_hosts[ascii_host] = host_vars
-
-    yml_dict['alpha'] = {'hosts': alpha_hosts}
-
-    return yml_dict
-
-
-def _create_main_inventory(vault, success_hosts, success_port_map,
-                           auth_map, profile):
-    yml_dict = make_inventory_dict(success_hosts, success_port_map, auth_map)
-    hosts_yml = profile + PROFILE_HOSTS_SUFIX
-    hosts_yml_path = utilities.get_config_path(hosts_yml)
-    vault.dump_as_yaml_to_file(yml_dict, hosts_yml_path)
-    ansible_utils.log_yaml_inventory('Main inventory', yml_dict)
 
 
 class ScanCommand(CliCommand):
@@ -326,49 +271,22 @@ class ScanCommand(CliCommand):
 
             _create_hosts_auths_file(auth_map, profile)
 
-            _create_main_inventory(vault, success_hosts, success_port_map,
-                                   auth_map, profile)
+            inventory_scan.create_main_inventory(vault, success_hosts,
+                                                 success_port_map, auth_map,
+                                                 profile)
 
         elif os.path.isfile(hosts_yml_path):
             print("Profile '" + profile + "' has not been processed. " +
                   "Please run without using --cache with the profile first.")
             sys.exit(1)
 
-        scan_dirs = ' '.join(self.options.scan_dirs)
-        ansible_vars = {'facts_to_collect': list(self.facts_to_collect),
-                        'report_path': report_path,
-                        'scan_dirs': scan_dirs}
+        scan_succeeded = inventory_scan.inventory_scan(
+            None, self.facts_to_collect, report_path, vault_pass,
+            profile, forks=forks, scan_dirs=self.options.scan_dirs,
+            log_path=self.options.logfile,
+            verbosity=self.verbosity)
 
-        playbook = utilities.PLAYBOOK_DEV_PATH
-        if not os.path.isfile(playbook):
-            playbook = utilities.PLAYBOOK_RPM_PATH
-            if not os.path.isfile(playbook):
-                print(_("rho scan playbook not found locally or in '%s'")
-                      % playbook)
-                sys.exit(1)
-
-        cmd_string = ('ansible-playbook {playbook} '
-                      '-i {inventory} -f {forks} '
-                      '--ask-vault-pass '
-                      '--extra-vars \'{vars}\'').format(
-                          playbook=playbook,
-                          inventory=hosts_yml_path,
-                          forks=forks,
-                          vars=json.dumps(ansible_vars))
-
-        # process finally runs ansible on the
-        # playbook and inventories thus created.
-        if self.options.logfile:
-            log_path = self.options.logfile
-        else:
-            log_path = SCAN_LOG_PATH
-        print('Running:', cmd_string)
-        process = ansible_utils.run_with_vault(
-            cmd_string, vault_pass,
-            log_path=log_path,
-            log_to_stdout=True,
-            ansible_verbosity=self.verbosity)
-        if process.exitstatus == 0 and process.signalstatus is None:
+        if scan_succeeded:
             host_auth_mapping = \
                 self.options.profile + PROFILE_HOST_AUTH_MAPPING_SUFFIX
             host_auth_mapping_path = \
