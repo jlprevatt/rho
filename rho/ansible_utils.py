@@ -114,7 +114,6 @@ def run_with_vault(cmd_string, vault_pass, env=None, log_path=None,
     if ansible_verbosity:
         cmd_string = cmd_string + ' -' + 'v' * ansible_verbosity
 
-    result = None
     try:
         utilities.ensure_data_dir_exists()
         with open(log_path, 'wb') as logfile:
@@ -127,7 +126,7 @@ def run_with_vault(cmd_string, vault_pass, env=None, log_path=None,
             if log_to_stdout:
                 utilities.threaded_tailing(log_path, ansible_verbosity)
 
-            result = child.expect('Vault password:')
+            child.expect('Vault password:')
             child.sendline(vault_pass)
             # Set the log file *after* we send the user's Vault
             # password to Ansible, so we don't log the password.
