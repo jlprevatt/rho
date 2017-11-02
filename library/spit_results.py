@@ -491,6 +491,35 @@ def process_jboss_eap_packages(fact_names, host_vars):
             '{0} JBoss-related packages found'.format(num_packages)}
 
 
+JBOSS_EAP_LOCATE_JBOSS_MODULES_JAR = 'jboss.eap.locate-jboss-modules-jar'
+
+
+def process_jboss_eap_locate(fact_names, host_vars):
+    """Process the results of 'locate jboss-modules.jar'.
+
+    :returns: a dict of key, value pairs to add to the output.
+    """
+
+    err, output = raw_output_present(fact_names, host_vars,
+                                     JBOSS_EAP_LOCATE_JBOSS_MODULES_JAR,
+                                     'jboss_eap_locate_jboss_modules_jar',
+                                     'locate jboss-modules.jar')
+    if err is not None:
+        return err
+
+    if not output['rc'] and output['stdout_lines']:
+        return {JBOSS_EAP_LOCATE_JBOSS_MODULES_JAR:
+                ';'.join(output['stdout_lines'])}
+
+    if output['rc'] and not output['stdout_lines']:
+        return {JBOSS_EAP_LOCATE_JBOSS_MODULES_JAR:
+                'jboss-modules.jar not found'}
+
+    return {JBOSS_EAP_LOCATE_JBOSS_MODULES_JAR:
+            "Error code {0} running 'locate jboss-modules.jar': {1}".format(
+                output['rc'], output['stdout'])}
+
+
 def escape_characters(data):
     """ Processes input data values and strips out any newlines or commas
     """
@@ -745,6 +774,7 @@ class Results(object):
             host_vals.update(process_jboss_eap_common_files(keys, host_vars))
             host_vals.update(process_jboss_eap_processes(keys, host_vars))
             host_vals.update(process_jboss_eap_packages(keys, host_vars))
+            host_vals.update(process_jboss_eap_locate(keys, host_vars))
 
         # Process System ID.
         for data in self.vals:

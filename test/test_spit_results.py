@@ -283,3 +283,40 @@ class TestProcessRPMPackages(unittest.TestCase):
         self.assertEqual(results['redhat-packages.gpg.last_installed'], '')
         self.assertIn('redhat-packages.gpg.last_built', results)
         self.assertEqual(results['redhat-packages.gpg.last_built'], '')
+
+
+class TestProcessJbossLocateJbossModulesJar(unittest.TestCase):
+    def run_expect_well_formed(self, output):
+        val = spit_results.process_jboss_eap_locate(
+            [spit_results.JBOSS_EAP_LOCATE_JBOSS_MODULES_JAR],
+            {'jboss_eap_locate_jboss_modules_jar': output})
+
+        self.assertIsInstance(val, dict)
+        self.assertEqual(len(val), 1)
+        self.assertIn(spit_results.JBOSS_EAP_LOCATE_JBOSS_MODULES_JAR, val)
+
+        return val[spit_results.JBOSS_EAP_LOCATE_JBOSS_MODULES_JAR]
+
+    # Most of the error handling is in
+    # spit_results.raw_output_present, which is tested elsewhere, so
+    # we don't need to repeat those tests here.
+
+    def test_success(self):
+        self.assertEqual(
+            self.run_expect_well_formed(
+                {'rc': 0, 'stdout_lines': ['a', 'b', 'c']}),
+            'a;b;c')
+
+    def test_not_found(self):
+        self.assertEqual(
+            self.run_expect_well_formed(
+                {'rc': 1, 'stdout_lines': []}),
+            'jboss-modules.jar not found')
+
+    def test_bad_output(self):
+        self.assertEqual(
+            self.run_expect_well_formed(
+                {'rc': 1, 'stdout': "Command 'locate' not found",
+                 'stdout_lines': ["Command 'locate' not found"]}),
+            "Error code 1 running 'locate jboss-modules.jar': "
+            "Command 'locate' not found")

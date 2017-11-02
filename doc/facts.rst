@@ -30,6 +30,7 @@
 - ``jboss.eap.common-files`` - Presence of common files and directories for JBoss EAP
 - ``jboss.eap.deploy-dates`` - List of deployment dates of JBoss EAP installations
 - ``jboss.eap.installed-versions`` - List of installed versions of JBoss EAP
+- ``jboss.eap.locate-jboss-modules-jar`` - Use locate to find jboss-modules.jar
 - ``jboss.eap.jboss-user`` - Whether a user called 'jboss' exists
 - ``jboss.eap.packages`` - Installed RPMs that look like JBoss
 - ``jboss.eap.processes`` - Running processes that look like JBoss
