@@ -170,7 +170,7 @@ new_fact('jboss.eap.installed-versions',
          is_default=False)
 new_fact('jboss.eap.locate-jboss-modules-jar',
          'Use locate to find jboss-modules.jar',
-         is_default=True)
+         is_default=True, categories=[JBOSS_FACTS])
 new_fact('jboss.eap.jboss-user', "Whether a user called 'jboss' exists",
          is_default=True, categories=[JBOSS_FACTS])
 new_fact('jboss.eap.packages', 'Installed RPMs that look like JBoss',
