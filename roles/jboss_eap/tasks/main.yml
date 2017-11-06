@@ -33,6 +33,7 @@
         - /opt/deploy/jboss/jbossas6/jboss-modules.jar
         - /usr/share/java/jboss-modules.jar
         - /usr/share/jbossas/jboss-modules.jar
+        - /etc/init.d/jboss-as-standalone.sh
       when: '"jboss.eap.common-files" in facts_to_collect'
     - name: gather jboss.eap.processes
       raw: ps -A -f e | grep eap
@@ -49,3 +50,15 @@
       register: jboss_eap_locate_jboss_modules_jar
       ignore_errors: yes
       when: '"jboss.eap.locate-jboss-modules-jar" in facts_to_collect'
+    - name: look for jboss systemd service
+      raw: systemctl list-unit-files
+      register: jboss_eap_systemctl_unit_files
+      ignore_errors: yes
+      become: true
+      when: '"jboss.eap.init-files" in facts_to_collect'
+    - name: look for jboss in chkconfig
+      raw: chkconfig
+      register: jboss_eap_chkconfig
+      ignore_errors: yes
+      become: true
+      when: '"jboss.eap.init-files" in facts_to_collect'

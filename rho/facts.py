@@ -165,6 +165,9 @@ new_fact('jboss.eap.common-files',
 new_fact('jboss.eap.deploy-dates',
          'List of deployment dates of JBoss EAP installations',
          is_default=False)
+new_fact('jboss.eap.init-files',
+         'Find system services that look JBoss-related',
+         is_default=True)
 new_fact('jboss.eap.installed-versions',
          'List of installed versions of JBoss EAP',
          is_default=False)
