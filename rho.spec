@@ -1,7 +1,7 @@
 %{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
 
 Name: rho
-Version: 0.0.29
+Version: 0.0.30
 Release: 1%{?dist}
 Summary: An SSH system profiler
 
@@ -65,9 +65,23 @@ rm -rf $RPM_BUILD_ROOT
 %{_datadir}/ansible/%{name}/roles/*
 
 %changelog
-* Tue Oct 17 2017 Noah Lavine <nlavine@redhat.com> 0.0.29-1
+* Wed Nov 8 2017 Noah Lavine <nlavine@redhat.com> 0.0.30-1
+- Enhancements to capture presence of EAP from init subscriptions
+- Enhancements to find common EAP files using locate command
+* Thu Nov 2 2017 Noah Lavine <nlavine@redhat.com> 0.0.29-1
 - Split JBoss scanning into full and lightweight scans; lightweight scan is
-  active by default.
+  active by default. (nlavine@redhat.com)
+- Enhancements of JBoss lightweight scanning for EAP common files and
+  directories and capturing the JBoss user. (nlavine@redhat.com)
+- Bug fix for handling systems that do not report rpm data.(chambrid@redhat.com)
+- Bug fix for systems that report etc_release differently.(chambrid@redhat.com)
+- Bug fix for non-sudo user task handling.(chambrid@redhat.com)
+- Bug fix for invalid host range input.(chambrid@redhat.com)
+- Enhancements to gather cpu core count, cpu hyperthreading, Red Hat
+  certificates, consumed subscriptions, rpm data filtered by GPG keys.
+  (chambrid@redhat.com)
+- Enhancement to provide user with more knowledge during the discovery process.
+  (chambrid@redhat.com)
 * Thu Sep 21 2017 Christopher Hambridge <chambrid@redhat.com> 0.0.28-5
 - Updated to utilize Ansible 2.3.1.0 and an Ansible playbook and associate
   roles.

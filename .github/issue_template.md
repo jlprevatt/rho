@@ -1,4 +1,4 @@
-# Openning a new issue
+# Opening a new issue
 ___
 
 ## Specify type:
@@ -19,7 +19,7 @@ ___
 ## Bug Report
 
 ### Version of rho:
-[ 0.27, 0.28, 0.29 ]
+[ 0.27, 0.28, 0.29, 0.30 ]
 
 ### Expected behavior:
 Describe the expected behavior for the program.
