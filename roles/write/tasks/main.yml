@@ -1,17 +1,6 @@
 ---
 
-- name: store facts from all hosts in a variable
-  set_fact: host_fact={{hostvars[item]["connection"] | combine(hostvars[item]["uname"]) | combine(hostvars[item]["date"])  | combine(hostvars[item]["file_contents"])  | combine(hostvars[item]["dmi"])  | combine(hostvars[item]["subman"])  | combine(hostvars[item]["redhat_release"])  | combine(hostvars[item]["cpu"])  | combine(hostvars[item]["virt"])  | combine(hostvars[item]["virt_what"])  | combine(hostvars[item]["etc_release"])  | combine(hostvars[item]["redhat_packages"]) }}
-  with_items: "{{groups.alpha}}"
-  register: host_facts
-
-- name: parse variable into a list of dictionaries
-  set_fact: host_facts="{{ host_facts.results | map(attribute="ansible_facts.host_fact") | list }}"
-
-- name: write the list to a csv
-  spit_results:
-    name: reporter
-    file_path: "{{report_path}}"
-    vals: "{{host_facts}}"
-    all_vars: "{{hostvars}}"
-    fact_names: "{{facts_to_collect}}"
+- name: write the host vars to JSON
+  copy:
+    content: "{{hostvars}}"
+    dest: "{{variables_path}}"

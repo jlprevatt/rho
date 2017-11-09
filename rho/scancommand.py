@@ -280,22 +280,17 @@ class ScanCommand(CliCommand):
                   "Please run without using --cache with the profile first.")
             sys.exit(1)
 
-        scan_succeeded = inventory_scan.inventory_scan(
+        inventory_scan.inventory_scan(
             hosts_yml_path, self.facts_to_collect, report_path, vault_pass,
             profile, forks=forks, scan_dirs=self.options.scan_dirs,
             log_path=self.options.logfile,
             verbosity=self.verbosity)
 
-        if scan_succeeded:
-            host_auth_mapping = \
-                self.options.profile + PROFILE_HOST_AUTH_MAPPING_SUFFIX
-            host_auth_mapping_path = \
-                utilities.get_config_path(host_auth_mapping)
-            print(_("Scanning has completed. The mapping has been"
-                    " stored in file '" + host_auth_mapping_path +
-                    "'. The facts have been stored in '" +
-                    report_path + "'"))
-        else:
-            print(_("An error has occurred during the scan. Please review" +
-                    " the output to resolve the given issue."))
-            sys.exit(1)
+        host_auth_mapping = \
+            self.options.profile + PROFILE_HOST_AUTH_MAPPING_SUFFIX
+        host_auth_mapping_path = \
+            utilities.get_config_path(host_auth_mapping)
+        print(_("Scanning has completed. The mapping has been"
+                " stored in file '" + host_auth_mapping_path +
+                "'. The facts have been stored in '" +
+                report_path + "'"))
