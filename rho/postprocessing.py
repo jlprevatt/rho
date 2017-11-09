@@ -12,6 +12,8 @@
 import sys
 import xml
 
+from rho import utilities
+
 # for parsing systemid
 if sys.version_info > (3,):
     import xmlrpc.client as xmlrpclib  # pylint: disable=import-error
@@ -562,7 +564,7 @@ def escape_characters(data):
     """ Processes input data values and strips out any newlines or commas
     """
     for key in data:
-        if isinstance(data[key], str):
+        if utilities.is_stringlike(data[key]):
             data[key] = data[key].replace('\r\n', ' ').replace(',', ' ')
     return data
 

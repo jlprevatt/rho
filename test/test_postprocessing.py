@@ -272,3 +272,15 @@ class TestProcessJbossLocateJbossModulesJar(unittest.TestCase):
                  'stdout_lines': ["Command 'locate' not found"]}),
             "Error code 1 running 'locate jboss-modules.jar': "
             "Command 'locate' not found")
+
+
+class TestEscapeCharacters(unittest.TestCase):
+    def test_string(self):
+        data = {'key': 'abc\r\nde,f'}
+        postprocessing.escape_characters(data)
+        self.assertEqual(data['key'], 'abc de f')
+
+    def test_unicode(self):
+        data = {'key': u'abc\r\nde,f'}
+        postprocessing.escape_characters(data)
+        self.assertEqual(data['key'], u'abc de f')
