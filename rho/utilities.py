@@ -460,7 +460,7 @@ if sys.version_info[0] == 2:
 
         # pylint for python 3 complains that unicode is undefined.
         # pylint: disable=undefined-variable
-        return isinstance(obj, (str, unicode))
+        return isinstance(obj, (str, unicode))  # noqa
 else:
     def is_stringlike(obj):
         """Check if an object is a string.
