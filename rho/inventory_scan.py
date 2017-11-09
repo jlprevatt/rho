@@ -9,12 +9,17 @@
 
 """Scan for software on hosts in an inventory."""
 
+from __future__ import print_function
+
+import csv
 import json
 import os.path
 import sys
+import tempfile
+import time
 
-from rho import ansible_utils, utilities
-from rho.translation import _
+from rho import ansible_utils, postprocessing, utilities
+from rho.translation import _ as t
 from rho.utilities import str_to_ascii
 
 
@@ -78,7 +83,7 @@ def create_main_inventory(vault, hosts, port_map, auth_map, path):
     ansible_utils.log_yaml_inventory('Main inventory', yml_dict)
 
 
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments, too-many-statements
 def inventory_scan(hosts_yml_path, facts_to_collect, report_path,
                    vault_pass, base_name, forks=None,
                    scan_dirs=None, log_path=None, verbosity=0):
@@ -101,16 +106,21 @@ def inventory_scan(hosts_yml_path, facts_to_collect, report_path,
     hosts_yml = base_name + utilities.PROFILE_HOSTS_SUFIX
     hosts_yml_path = utilities.get_config_path(hosts_yml)
 
+    variables_path = os.path.join(
+        tempfile.gettempdir(),
+        'rho-fact-temp-' + str(time.time()))
+
     ansible_vars = {'facts_to_collect': list(facts_to_collect),
                     'report_path': report_path,
-                    'scan_dirs': ' '.join(scan_dirs or [])}
+                    'scan_dirs': ' '.join(scan_dirs or []),
+                    'variables_path': variables_path}
 
     if os.path.isfile(utilities.PLAYBOOK_DEV_PATH):
         playbook = utilities.PLAYBOOK_DEV_PATH
     elif os.path.isfile(utilities.PLAYBOOK_RPM_PATH):
         playbook = utilities.PLAYBOOK_RPM_PATH
     else:
-        print(_("rho scan playbook not found locally or in '%s'")
+        print(t("rho scan playbook not found locally or in '%s'")
               % playbook)
         sys.exit(1)
 
@@ -125,12 +135,85 @@ def inventory_scan(hosts_yml_path, facts_to_collect, report_path,
 
     log_path = log_path or utilities.SCAN_LOG_PATH
 
-    print('Running:', cmd_string)
+    try:
+        ansible_utils.run_with_vault(
+            cmd_string, vault_pass,
+            log_path=log_path,
+            log_to_stdout=True,
+            ansible_verbosity=verbosity,
+            print_before_run=True)
+    except ansible_utils.AnsibleProcessException as ex:
+        print(t("An error has occurred during the scan. Please review" +
+                " the output to resolve the given issue: %s" % str(ex)))
+        sys.exit(1)
 
-    process = ansible_utils.run_with_vault(
-        cmd_string, vault_pass,
-        log_path=log_path,
-        log_to_stdout=True,
-        ansible_verbosity=verbosity)
+    with open(variables_path, 'r') as variables_file:
+        vars_by_host = json.load(variables_file)
 
-    return process.exitstatus == 0 and process.signalstatus is None
+    # Postprocess Ansible output
+    facts_out = []
+    for _, host_vars in utilities.iteritems(vars_by_host):
+        this_host = {}
+
+        this_host.update(host_vars['connection'])
+        this_host.update(host_vars['cpu'])
+        this_host.update(host_vars['date'])
+        this_host.update(host_vars['dmi'])
+        this_host.update(host_vars['etc_release'])
+        this_host.update(host_vars['file_contents'])
+        this_host.update(host_vars['redhat_packages'])
+        this_host.update(host_vars['redhat_release'])
+        this_host.update(host_vars['subman'])
+        this_host.update(host_vars['uname'])
+        this_host.update(host_vars['virt'])
+        this_host.update(host_vars['virt_what'])
+
+        this_host.update(
+            postprocessing.process_jboss_versions(facts_to_collect, host_vars))
+        this_host.update(
+            postprocessing.process_addon_versions(facts_to_collect, host_vars))
+        this_host.update(
+            postprocessing.process_id_u_jboss(facts_to_collect, host_vars))
+        this_host.update(
+            postprocessing.process_jboss_eap_common_files(
+                facts_to_collect, host_vars))
+        this_host.update(
+            postprocessing.process_jboss_eap_processes(
+                facts_to_collect, host_vars))
+        this_host.update(
+            postprocessing.process_jboss_eap_packages(
+                facts_to_collect, host_vars))
+        this_host.update(
+            postprocessing.process_jboss_eap_locate(
+                facts_to_collect, host_vars))
+        this_host.update(
+            postprocessing.process_jboss_eap_init_files(
+                facts_to_collect, host_vars))
+
+        postprocessing.handle_systemid(facts_to_collect, this_host)
+        postprocessing.handle_redhat_packages(facts_to_collect, this_host)
+        postprocessing.escape_characters(this_host)
+
+        facts_out.append(this_host)
+
+    normalized_path = os.path.normpath(report_path)
+    with open(normalized_path, 'w') as write_file:
+        # Construct the CSV writer
+        writer = csv.DictWriter(
+            write_file, sorted(facts_to_collect), delimiter=',')
+
+        # Write a CSV header if necessary
+        file_size = os.path.getsize(normalized_path)
+        if file_size == 0:
+            # handle Python 2.6 not having writeheader method
+            if sys.version_info[0] == 2 and sys.version_info[1] <= 6:
+                headers = {}
+                for fields in writer.fieldnames:
+                    headers[fields] = fields
+                writer.writerow(headers)
+            else:
+                writer.writeheader()
+
+        # Write the data
+        for data in facts_out:
+            writer.writerow(data)

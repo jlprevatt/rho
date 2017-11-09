@@ -47,7 +47,6 @@ install -D -p -m 644 doc/rho.1 $RPM_BUILD_ROOT%{_mandir}/man1/rho.1
 
 mkdir -p %{buildroot}%{_datadir}/ansible/%{name}
 cp rho_playbook.yml %{buildroot}%{_datadir}/ansible/%{name}
-cp -rp library %{buildroot}%{_datadir}/ansible/%{name}/
 cp -rp roles %{buildroot}%{_datadir}/ansible/%{name}/
 
 %clean
@@ -61,7 +60,6 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/rho.1.gz
 %dir %{_datadir}/ansible/%{name}
 %{_datadir}/ansible/%{name}/rho_playbook.yml
-%{_datadir}/ansible/%{name}/library/*
 %{_datadir}/ansible/%{name}/roles/*
 
 %changelog

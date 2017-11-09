@@ -84,9 +84,16 @@ def log_yaml_inventory(label, inventory):
     return inventory
 
 
+class AnsibleProcessException(Exception):
+    """Exception raised when an Ansible process fails."""
+
+    pass
+
+
 # pylint: disable=too-many-arguments
 def run_with_vault(cmd_string, vault_pass, env=None, log_path=None,
-                   log_to_stdout=True, ansible_verbosity=0):
+                   log_to_stdout=True, ansible_verbosity=0,
+                   print_before_run=False):
     """Runs ansible command allowing for password to be provided after
     process triggered.
 
@@ -100,6 +107,8 @@ def run_with_vault(cmd_string, vault_pass, env=None, log_path=None,
     :param log_to_stdout: if True, write Ansible's log to stdout. Defaults to
         True.
     :param ansible_verbosity: the number of v's of Ansible verbosity.
+    :param print_before_run: if true, print the command string before running
+        it. Defaults to False.
     :returns: the popen.spawn object for the process.
     """
 
@@ -120,6 +129,8 @@ def run_with_vault(cmd_string, vault_pass, env=None, log_path=None,
             pass
         with open(log_path, 'r+b') as logfile:
             log.debug('Running Ansible: %s', cmd_string)
+            if print_before_run:
+                print('Running:', cmd_string)
             child = pexpect.spawn(cmd_string, timeout=None,
                                   env=env)
 
@@ -156,10 +167,14 @@ def run_with_vault(cmd_string, vault_pass, env=None, log_path=None,
             if log_to_stdout:
                 time.sleep(2)
 
-        return child
     except pexpect.EOF:
         print('Error: unexpected Ansible output')
         sys.exit(1)
     except pexpect.TIMEOUT:
         print('Error: unexpected Ansible output')
         sys.exit(1)
+
+    if child.exitstatus or child.signalstatus:
+        raise AnsibleProcessException(
+            'Ansible process failed with status %s, signal status %s' %
+            (child.exitstatus, child.signalstatus))

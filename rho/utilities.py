@@ -451,6 +451,26 @@ def iteritems(dictionary):
     return dictionary.items()
 
 
+if sys.version_info[0] == 2:
+    def is_stringlike(obj):
+        """Check if an object is a string.
+
+        This function is for Python 2 and 3 compatibility.
+        """
+
+        # pylint for python 3 complains that unicode is undefined.
+        # pylint: disable=undefined-variable
+        return isinstance(obj, (str, unicode))  # noqa
+else:
+    def is_stringlike(obj):
+        """Check if an object is a string.
+
+        This function is for Python 2 and 3 compatibility.
+        """
+
+        return isinstance(obj, str)
+
+
 def write_csv_data(keys, data, path):
     """ Write csv data with input fieldnames a dictionary of data and the file
     path to write to.

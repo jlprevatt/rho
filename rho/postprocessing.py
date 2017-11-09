@@ -1,5 +1,4 @@
-#
-# Copyright (c) 2009 Red Hat, Inc.
+# Copyright (c) 2017 Red Hat, Inc.
 #
 # This software is licensed to you under the GNU General Public License,
 # version 2 (GPLv2). There is NO WARRANTY for this software, express or
@@ -7,19 +6,13 @@
 # FOR A PARTICULAR PURPOSE. You should have received a copy of GPLv2
 # along with this software; if not, see
 # http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
-#
 
-# pylint: disable=R0903
+"""Postprocessing for facts coming from our Ansible playbook."""
 
-"""Module responsible for displaying results of rho report"""
-
-import csv
-import os
-import json
 import sys
 import xml
-# pylint: disable=import-error
-from ansible.module_utils.basic import AnsibleModule
+
+from rho import utilities
 
 # for parsing systemid
 if sys.version_info > (3,):
@@ -112,30 +105,6 @@ FUSE_CLASSIFICATIONS = {
     'redhat-610379': 'Fuse-6.1.0',
     'redhat-60024': 'Fuse-6.0.0',
 }
-
-
-def iteritems(dictionary):
-    """Iterate over a dictionary's (key, value) pairs using Python 2 or 3.
-
-    :param dictionary: the dictionary to iterate over.
-    """
-
-    if sys.version_info[0] == 2:
-        return dictionary.iteritems()
-
-    return dictionary.items()
-
-
-def safe_next(iterator):
-    """Get the next item from an iterator, in Python 2 or 3.
-
-    :param iterator: the iterator.
-    """
-
-    if sys.version_info[0] == 2:
-        return iterator.next()
-
-    return next(iterator)
 
 
 def raw_output_present(fact_names, host_vars, this_fact, this_var, command):
@@ -595,7 +564,7 @@ def escape_characters(data):
     """ Processes input data values and strips out any newlines or commas
     """
     for key in data:
-        if isinstance(data[key], str):
+        if utilities.is_stringlike(data[key]):
             data[key] = data[key].replace('\r\n', ' ').replace(',', ' ')
     return data
 
@@ -788,115 +757,25 @@ class PkgInfoParseException(BaseException):
     pass
 
 
-class Results(object):
-    """The class Results contains the functionality to parse
-    data passed in from the playbook and to output it in the
-    csv format in the file path specified.
+def handle_systemid(fact_names, data):
+    """Process the output of systemid.contents
+    and supply the appropriate output information
     """
+    if 'systemid.contents' in data:
+        blob = data['systemid.contents']
+        id_in_facts = 'SysId_systemid.system_id' in fact_names
+        username_in_facts = 'SysId_systemid.username' in fact_names
+        try:
+            systemid = xmlrpclib.loads(blob)[0][0]
+            if id_in_facts and 'system_id'in systemid:
+                data['systemid.system_id'] = systemid['system_id']
+            if username_in_facts and 'usnername' in systemid:
+                data['systemid.username'] = systemid['usnername']
+        except xml.parsers.expat.ExpatError:
+            if id_in_facts:
+                data['systemid.system_id'] = 'error'
+            if username_in_facts:
+                data['systemid.username'] = 'error'
 
-    def __init__(self, module):
-        self.module = module
-        self.name = module.params['name']
-        self.file_path = module.params['file_path']
-        self.vals = module.params['vals']
-        self.all_vars = module.params['all_vars']
-        self.fact_names = module.params['fact_names']
-
-    def handle_systemid(self, data):
-        """Process the output of systemid.contents
-        and supply the appropriate output information
-        """
-        if 'systemid.contents' in data:
-            blob = data['systemid.contents']
-            id_in_facts = 'SysId_systemid.system_id' in self.fact_names
-            username_in_facts = 'SysId_systemid.username' in self.fact_names
-            try:
-                systemid = xmlrpclib.loads(blob)[0][0]
-                if id_in_facts and 'system_id'in systemid:
-                    data['systemid.system_id'] = systemid['system_id']
-                if username_in_facts and 'usnername' in systemid:
-                    data['systemid.username'] = systemid['usnername']
-            except xml.parsers.expat.ExpatError:
-                if id_in_facts:
-                    data['systemid.system_id'] = 'error'
-                if username_in_facts:
-                    data['systemid.username'] = 'error'
-
-            del data['systemid.contents']
-        return data
-
-    def write_to_csv(self):
-        """Output report data to file in csv format"""
-        # Make sure the controller expanded the default option.
-        assert self.fact_names != ['default']
-
-        keys = set(self.fact_names)
-
-        # Special processing for JBoss facts.
-        for _, host_vars in iteritems(self.all_vars):
-            uuid = host_vars['connection']['connection.uuid']
-            host_vals = safe_next((vals
-                                   for vals in self.vals
-                                   if vals['connection.uuid'] == uuid))
-
-            host_vals.update(process_jboss_versions(keys, host_vars))
-            host_vals.update(process_addon_versions(keys, host_vars))
-            host_vals.update(process_id_u_jboss(keys, host_vars))
-            host_vals.update(process_jboss_eap_common_files(keys, host_vars))
-            host_vals.update(process_jboss_eap_processes(keys, host_vars))
-            host_vals.update(process_jboss_eap_packages(keys, host_vars))
-            host_vals.update(process_jboss_eap_locate(keys, host_vars))
-            host_vals.update(process_jboss_eap_init_files(keys, host_vars))
-
-        # Process System ID.
-        for data in self.vals:
-            data = self.handle_systemid(data)
-            data = handle_redhat_packages(self.fact_names, data)
-            data = escape_characters(data)
-
-        normalized_path = os.path.normpath(self.file_path)
-        with open(normalized_path, 'w') as write_file:
-            # Construct the CSV writer
-            writer = csv.DictWriter(
-                write_file, sorted(keys), delimiter=',')
-
-            # Write a CSV header if necessary
-            file_size = os.path.getsize(normalized_path)
-            if file_size == 0:
-                # handle Python 2.6 not having writeheader method
-                if sys.version_info[0] == 2 and sys.version_info[1] <= 6:
-                    headers = {}
-                    for fields in writer.fieldnames:
-                        headers[fields] = fields
-                    writer.writerow(headers)
-                else:
-                    writer.writeheader()
-
-            # Write the data
-            for data in self.vals:
-                writer.writerow(data)
-
-
-def main():
-    """Function to trigger collection of results and write
-    them to csv file
-    """
-
-    fields = {
-        "name": {"required": True, "type": "str"},
-        "file_path": {"required": True, "type": "str"},
-        "vals": {"required": True, "type": "list"},
-        "all_vars": {"required": True, "type": "dict"},
-        "fact_names": {"required": True, "type": "list"}
-    }
-
-    module = AnsibleModule(argument_spec=fields)
-
-    results = Results(module=module)
-    results.write_to_csv()
-    vals = json.dumps(results.vals)
-    module.exit_json(changed=False, meta=vals)
-
-
-if __name__ == '__main__':
-    main()
+        del data['systemid.contents']
+    return data
