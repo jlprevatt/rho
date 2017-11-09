@@ -458,7 +458,9 @@ if sys.version_info[0] == 2:
         This function is for Python 2 and 3 compatibility.
         """
 
-        return isinstance(obj, str) or isinstance(obj, unicode)
+        # pylint for python 3 complains that unicode is undefined.
+        # pylint: disable=undefined-variable
+        return isinstance(obj, (str, unicode))
 else:
     def is_stringlike(obj):
         """Check if an object is a string.
