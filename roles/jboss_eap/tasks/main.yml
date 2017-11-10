@@ -1,15 +1,68 @@
 
 ---
+
+# Tasks that can locate an EAP_HOME directory
     - name: Gather jboss.eap.running-paths
-      raw: for proc_pid in $(find /proc -maxdepth 1 -xdev -name "[0-9]*"); do ls -l ${proc_pid}/fd 2>/dev/null | grep "java"; done | grep -e "/modules/system/layers/base\|/opt/rh/eap" | sed -n "s/.*\->//p" | sed -n 's/\/modules\/system\/layers\/base.*//p;s/.*\(\/opt\/rh\/eap[1-9]\).*/\1/p' | sort -u
-      register: jboss.eap.running-paths
+      raw: for proc_pid in $(find /proc -maxdepth 1 -xdev -name "[0-9]*"); do ls -l ${proc_pid}/fd 2>/dev/null | grep "java"; done | grep -e "/modules/system/layers/base\|/opt/rh/eap[0-9]/root/usr/share/wildfly" | sed -n "s/.*\-> //p" | sed -n 's/\/modules\/system\/layers\/base.*//p;s/\(.*wildfly\).*/\1/p' | sort -u
+      register: jboss_eap_running_paths
       ignore_errors: yes
-      when: 'have_java and "jboss.eap.running-paths" in facts_to_collect'
-    - name: check for user 'jboss'
-      raw: id -u jboss
-      register: jboss_eap_id_jboss
+      when: 'have_java and ("jboss.eap.running-paths" in facts_to_collect or "jboss.eap.eap-home" in facts_to_collect or "jboss.fuse.fuse-on-eap" in facts_to_collect)'
+
+    - name: use locate to look for jboss-modules.jar
+      raw: locate jboss-modules.jar | xargs -n 1 dirname
+      register: jboss_eap_locate_jboss_modules_jar
       ignore_errors: yes
-      when: '"jboss.eap.jboss-user" in facts_to_collect'
+      when: '"jboss.eap.locate-jboss-modules-jar" in facts_to_collect or "jboss.eap.eap-home" in facts_to_collect or "jboss.fuse.fuse-on-eap" in facts_to_collect'
+
+# Combine the outputs of the above into a single fact
+
+    - name: combine EAP_HOME candidates into single list
+      set_fact:
+        eap_home_candidates: "{{ ((jboss_eap_running_paths['stdout_lines'] if 'stdout_lines' in jboss_eap_running_paths else []) +
+                    (jboss_eap_locate_jboss_modules_jar['stdout_lines'] if 'stdout_lines' in jboss_eap_locate_jboss_modules_jar else [])) | unique}}"
+      ignore_errors: yes
+
+# Filters that will help us find true EAP_HOME directories
+
+    - name: ls EAP_HOME candidates
+      raw: ls -1 "{{ item }}"
+      register: eap_home_candidates_ls
+      ignore_errors: yes
+      with_items: "{{ eap_home_candidates }}"
+      when: '"jboss.eap.eap-home" in facts_to_collect or "jboss.fuse.fuse-on-eap" in facts_to_collect'
+
+    - name: get version.txt from EAP_HOME candidates
+      raw: cat "{{ item }}"/version.txt
+      register: eap_home_candidates_version_txt
+      ignore_errors: yes
+      with_items: "{{ eap_home_candidates }}"
+      when: '"jboss.eap.eap-home" in facts_to_collect or "jboss.fuse.fuse-on-eap" in facts_to_collect'
+
+# Look for fuse inside EAP_HOME directories
+
+    - name: check JBoss bin directory
+      raw: ls -1 "{{ item }}"/bin
+      register: eap_home_candidates_bin
+      ignore_errors: yes
+      with_items: "{{ eap_home_candidates }}"
+      when: '"jboss.fuse.fuse-on-eap" in facts_to_collect'
+
+    - name: check JBoss layers.conf
+      raw: cat "{{ item }}"/modules/layers.conf
+      register: eap_home_candidates_layers_conf
+      ignore_errors: yes
+      with_items: "{{ eap_home_candidates }}"
+      when: '"jboss.fuse.fuse-on-eap" in facts_to_collect'
+
+    - name: check JBoss modules/system/layers
+      raw: ls -1 "{{ item }}"/modules/system/layers
+      register: eap_home_candidates_layers
+      ignore_errors: yes
+      with_items: "{{ eap_home_candidates }}"
+      when: '"jboss.fuse.fuse-on-eap" in facts_to_collect'
+
+# Tests that can indicate the presence of EAP, but don't let us
+# automatically locate EAP_HOME
     - name: check for common install files and directories
       raw: test -e "{{ item }}"
       register: jboss_eap_common_files
@@ -45,11 +98,11 @@
       register: jboss.eap.packages
       ignore_errors: yes
       when: '"jboss.eap.packages" in facts_to_collect'
-    - name: use locate to look for jboss-modules.jar
-      raw: locate jboss-modules.jar
-      register: jboss_eap_locate_jboss_modules_jar
+    - name: check for user 'jboss'
+      raw: id -u jboss
+      register: jboss_eap_id_jboss
       ignore_errors: yes
-      when: '"jboss.eap.locate-jboss-modules-jar" in facts_to_collect'
+      when: '"jboss.eap.jboss-user" in facts_to_collect'
     - name: look for jboss systemd service
       raw: systemctl list-unit-files
       register: jboss_eap_systemctl_unit_files

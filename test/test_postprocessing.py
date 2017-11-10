@@ -274,6 +274,64 @@ class TestProcessJbossLocateJbossModulesJar(unittest.TestCase):
             "Command 'locate' not found")
 
 
+class TestProcessJbossEapHome(unittest.TestCase):
+    def test_one_dir(self):
+        ls_result = [
+            'appclient', 'docs', 'installation', 'LICENSE.txt', 'standalone',
+            'welcome-content', 'bin', 'domain', 'JBossEULA.txt', 'modules',
+            'Uninstaller', 'bundles', 'icons', 'jboss-modules.jar',
+            'SHA256SUM', 'version.txt']
+        cat_result = (
+            'Red Hat JBoss Enterprise Application Platform - Version 6.4.0.GA')
+
+        result = postprocessing.process_jboss_eap_home(
+            [postprocessing.JBOSS_EAP_EAP_HOME],
+            {'eap_home_candidates_ls': {
+                'results': [
+                    {'item': 'eap_home', 'rc': 0,
+                     'stdout_lines': ls_result}]},
+             'eap_home_candidates_version_txt': {
+                 'results': [
+                     {'item': 'eap_home', 'rc': 0,
+                      'stdout': cat_result}]}})
+
+        self.assertIn(postprocessing.JBOSS_EAP_EAP_HOME, result)
+        dir_result = result[postprocessing.JBOSS_EAP_EAP_HOME]
+
+        # pylint: disable=line-too-long
+        self.assertEqual(dir_result,
+                         'eap_home: eap_home contains appclient,standalone,JBossEULA.txt,modules,jboss-modules.jar,version.txt, Red Hat JBoss Enterprise Application Platform - Version 6.4.0.GA')  # noqa
+
+
+class TestProcessFuseOnEap(unittest.TestCase):
+    def test_success(self):
+        ls_bin = ['fuseconfig.sh', 'fusepatch.sh']
+        layers_conf = '#Tue Oct 24 16:22:35 EDT 2017\nlayers=fuse,soa\n'
+        ls_layers = ['base', 'fuse', 'soa']
+
+        result = postprocessing.process_fuse_on_eap(
+            [postprocessing.JBOSS_FUSE_FUSE_ON_EAP],
+            {'eap_home_candidates_bin': {
+                'results': [
+                    {'item': 'eap_home', 'rc': 0,
+                     'stdout_lines': ls_bin}]},
+             'eap_home_candidates_layers_conf': {
+                 'results': [
+                     {'item': 'eap_home', 'rc': 0,
+                      'stdout': layers_conf}]},
+             'eap_home_candidates_layers': {
+                 'results': [
+                     {'item': 'eap_home', 'rc': 0,
+                      'stdout_lines': ls_layers}]}})
+
+        self.assertIn(postprocessing.JBOSS_FUSE_FUSE_ON_EAP, result)
+        dir_result = result[postprocessing.JBOSS_FUSE_FUSE_ON_EAP]
+
+        # pylint: disable=line-too-long
+        self.assertEqual(dir_result,
+                         'eap_home: /bin=eap_home contains fuseconfig.sh,fusepatch.sh, /modules/layers.conf=#Tue Oct 24 16:22:35 EDT 2017\nlayers=fuse,soa, /modules/system/layers=eap_home contains fuse')  # noqa
+
+
 class TestEscapeCharacters(unittest.TestCase):
     def test_string(self):
         data = {'key': 'abc\r\nde,f'}

@@ -230,7 +230,7 @@ def process_jboss_versions(fact_names, host_vars):
     if JBOSS_EAP_RUNNING_PATHS in fact_names:
         err, output = raw_output_present(fact_names, host_vars,
                                          JBOSS_EAP_RUNNING_PATHS,
-                                         JBOSS_EAP_RUNNING_PATHS,
+                                         'jboss_eap_running_paths',
                                          'running EAP scan')
         if err is not None:
             val.update(err)
@@ -558,6 +558,126 @@ def process_jboss_eap_init_files(fact_names, host_vars):
 
     return {JBOSS_EAP_INIT_FILES:
             "No services found matching 'jboss' or 'eap'."}
+
+
+JBOSS_EAP_EAP_HOME = 'jboss.eap.eap-home'
+# Files that live in an EAP_HOME directory.
+JBOSS_EAP_INDICATOR_FILES = ['appclient', 'standalone', 'JBossEULA.txt',
+                             'modules', 'jboss-modules.jar', 'version.txt']
+
+
+def process_indicator_files(indicator_files, ls_out):
+    """Process the output of a with_items ls from Ansible."""
+
+    ls_results = {}
+    for item in ls_out['results']:
+        directory = item['item']
+        if item['rc']:
+            ls_results[directory] = "Error in 'ls'"
+            continue
+
+        files = item['stdout_lines']
+        found_in_dir = [filename for filename in indicator_files
+                        if filename in files]
+        if found_in_dir:
+            ls_results[directory] = (
+                directory + ' contains ' + ','.join(found_in_dir))
+        else:
+            ls_results[directory] = 'No indicator files found'
+
+    return ls_results
+
+
+def process_cat_results(filename, cat_out):
+    """Process the output of a with_items cat from Ansible."""
+
+    cat_results = {}
+    for item in cat_out['results']:
+        directory = item['item']
+        if item['rc']:
+            cat_results[directory] = "Error in 'cat {0}'".format(filename)
+        else:
+            cat_results[directory] = item['stdout'].strip()
+
+    return cat_results
+
+
+def process_jboss_eap_home(fact_names, host_vars):
+    """Find the EAP_HOME directory of a JBoss installation, if possible."""
+
+    err, ls_out = raw_output_present(fact_names, host_vars,
+                                     JBOSS_EAP_EAP_HOME,
+                                     'eap_home_candidates_ls',
+                                     'ls -1 EAP_HOME candidate directories')
+    if err is not None:
+        return err
+
+    err, cat_out = raw_output_present(fact_names, host_vars,
+                                      JBOSS_EAP_EAP_HOME,
+                                      'eap_home_candidates_version_txt',
+                                      'cat EAP_HOME/version.txt for candidate '
+                                      'EAP_HOMEs')
+    if err is not None:
+        return err
+
+    ls_results = process_indicator_files(JBOSS_EAP_INDICATOR_FILES, ls_out)
+    cat_results = process_cat_results('version.txt', cat_out)
+
+    eap_homes = ls_results.keys()
+    assert eap_homes == cat_results.keys()
+
+    return {JBOSS_EAP_EAP_HOME:
+            '; '.join([directory +
+                       ': ' + ls_results[directory] +
+                       ', ' + cat_results[directory]
+                       for directory in eap_homes])}
+
+
+JBOSS_FUSE_FUSE_ON_EAP = 'jboss.fuse.fuse-on-eap'
+JBOSS_FUSE_BIN_INDICATOR_FILES = ['fuseconfig.sh', 'fusepatch.sh']
+
+
+def process_fuse_on_eap(fact_names, host_vars):
+    """Find JBoss Fuse when it is layered on top of JBoss EAP."""
+
+    err, ls_bin = raw_output_present(fact_names, host_vars,
+                                     JBOSS_FUSE_FUSE_ON_EAP,
+                                     'eap_home_candidates_bin',
+                                     'ls $EAP_HOME/bin')
+    if err:
+        return err
+
+    err, layers_conf = raw_output_present(fact_names, host_vars,
+                                          JBOSS_FUSE_FUSE_ON_EAP,
+                                          'eap_home_candidates_layers_conf',
+                                          'cat $EAP_HOME/modules/layers.conf')
+    if err:
+        return err
+
+    err, ls_layers = raw_output_present(fact_names, host_vars,
+                                        JBOSS_FUSE_FUSE_ON_EAP,
+                                        'eap_home_candidates_layers',
+                                        'ls $EAP_HOME/modules/system/layers')
+    if err:
+        return err
+
+    ls_bin_results = process_indicator_files(
+        JBOSS_FUSE_BIN_INDICATOR_FILES, ls_bin)
+    layers_conf_results = process_cat_results('layers.conf', layers_conf)
+    ls_layers_results = process_indicator_files(['fuse'], ls_layers)
+
+    eap_homes = ls_bin_results.keys()
+    assert eap_homes == layers_conf_results.keys() == ls_layers_results.keys()
+
+    return {JBOSS_FUSE_FUSE_ON_EAP:
+            '; '.join([
+                ('{0}: /bin={1}, /modules/layers.conf={2},'
+                 ' /modules/system/layers={3}').format(
+                     eap_home,
+                     ls_bin_results[eap_home],
+                     layers_conf_results[eap_home],
+                     ls_layers_results[eap_home])
+                for eap_home in eap_homes])}
 
 
 def escape_characters(data):

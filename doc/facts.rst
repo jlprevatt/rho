@@ -29,6 +29,8 @@
 - ``jboss.brms.kie-war-ver`` - KIE runtime version
 - ``jboss.eap.common-files`` - Presence of common files and directories for JBoss EAP
 - ``jboss.eap.deploy-dates`` - List of deployment dates of JBoss EAP installations
+- ``jboss.eap.eap-home`` - Find EAP_HOME directories of JBoss EAP installations
+- ``jboss.eap.init-files`` - Find system services that look JBoss-related
 - ``jboss.eap.installed-versions`` - List of installed versions of JBoss EAP
 - ``jboss.eap.locate-jboss-modules-jar`` - Use locate to find jboss-modules.jar
 - ``jboss.eap.jboss-user`` - Whether a user called 'jboss' exists
@@ -38,6 +40,7 @@
 - ``jboss.fuse.activemq-ver`` - ActiveMQ version
 - ``jboss.fuse.camel-ver`` - Camel version
 - ``jboss.fuse.cxf-ver`` - CXF version
+- ``jboss.fuse.fuse-on-eap`` - Fuse on EAP
 - ``redhat-packages.certs`` - the list of Red Hat certificates found
 - ``redhat-packages.gpg.is_redhat`` - determines if package is a Red Hat package filtered by GPG keys
 - ``redhat-packages.gpg.last_installed`` - last installed package filtered by GPG keys
