@@ -189,6 +189,10 @@ def inventory_scan(hosts_yml_path, facts_to_collect, report_path,
         this_host.update(
             postprocessing.process_jboss_eap_init_files(
                 facts_to_collect, host_vars))
+        this_host.update(
+            postprocessing.process_jboss_eap_home(facts_to_collect, host_vars))
+        this_host.update(
+            postprocessing.process_fuse_on_eap(facts_to_collect, host_vars))
 
         postprocessing.handle_systemid(facts_to_collect, this_host)
         postprocessing.handle_redhat_packages(facts_to_collect, this_host)
