@@ -1,0 +1,245 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>rho.inventory_scan &#8212; rho 2.0 documentation</title>
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '2.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for rho.inventory_scan</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2017 Red Hat, Inc.</span>
+<span class="c1">#</span>
+<span class="c1"># This software is licensed to you under the GNU General Public License,</span>
+<span class="c1"># version 2 (GPLv2). There is NO WARRANTY for this software, express or</span>
+<span class="c1"># implied, including the implied warranties of MERCHANTABILITY or FITNESS</span>
+<span class="c1"># FOR A PARTICULAR PURPOSE. You should have received a copy of GPLv2</span>
+<span class="c1"># along with this software; if not, see</span>
+<span class="c1"># http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.</span>
+
+<span class="sd">&quot;&quot;&quot;Scan for software on hosts in an inventory.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">os.path</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="kn">from</span> <span class="nn">rho</span> <span class="k">import</span> <span class="n">ansible_utils</span><span class="p">,</span> <span class="n">utilities</span>
+<span class="kn">from</span> <span class="nn">rho.translation</span> <span class="k">import</span> <span class="n">_</span>
+<span class="kn">from</span> <span class="nn">rho.utilities</span> <span class="k">import</span> <span class="n">str_to_ascii</span>
+
+
+<span class="c1"># Creates the filtered main inventory on which the custom</span>
+<span class="c1"># modules to collect facts are run. This inventory can be</span>
+<span class="c1"># used multiple times later after a profile has first been</span>
+<span class="c1"># processed and the valid mapping as been figured out by</span>
+<span class="c1"># pinging.</span>
+<span class="c1"># pylint: disable=too-many-locals</span>
+<div class="viewcode-block" id="make_inventory_dict"><a class="viewcode-back" href="../../rho.html#rho.inventory_scan.make_inventory_dict">[docs]</a><span class="k">def</span> <span class="nf">make_inventory_dict</span><span class="p">(</span><span class="n">hosts</span><span class="p">,</span> <span class="n">port_map</span><span class="p">,</span> <span class="n">auth_map</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Make the inventory for the scan, as a dict.</span>
+
+<span class="sd">    :param hosts: a list of hosts for the inventory</span>
+<span class="sd">    :param port_map: mapping from hosts to SSH ports</span>
+<span class="sd">    :param auth_map: map from host IP to a list of auths it works with</span>
+
+<span class="sd">    :returns: a dict with the structure:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            {&#39;alpha&#39;:</span>
+<span class="sd">                {&#39;hosts&#39;:</span>
+<span class="sd">                    {&#39;IP address 1&#39;: {&#39;host-vars-1&#39;},</span>
+<span class="sd">                     &#39;IP address 2&#39;: {&#39;host-vars-2&#39;},</span>
+<span class="sd">                     # ...</span>
+<span class="sd">                    }</span>
+<span class="sd">                }</span>
+<span class="sd">            }</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">yml_dict</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># Create section of successfully connected hosts</span>
+    <span class="n">alpha_hosts</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">host</span> <span class="ow">in</span> <span class="n">hosts</span><span class="p">:</span>
+        <span class="n">ascii_host</span> <span class="o">=</span> <span class="n">str_to_ascii</span><span class="p">(</span><span class="n">host</span><span class="p">)</span>
+        <span class="n">ascii_port</span> <span class="o">=</span> <span class="n">str_to_ascii</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">port_map</span><span class="p">[</span><span class="n">host</span><span class="p">]))</span>
+        <span class="n">host_vars</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;ansible_host&#39;</span><span class="p">:</span> <span class="n">ascii_host</span><span class="p">,</span>
+                     <span class="s1">&#39;ansible_port&#39;</span><span class="p">:</span> <span class="n">ascii_port</span><span class="p">}</span>
+        <span class="n">host_vars</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+            <span class="n">ansible_utils</span><span class="o">.</span><span class="n">auth_as_ansible_host_vars</span><span class="p">(</span><span class="n">auth_map</span><span class="p">[</span><span class="n">host</span><span class="p">][</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="n">alpha_hosts</span><span class="p">[</span><span class="n">ascii_host</span><span class="p">]</span> <span class="o">=</span> <span class="n">host_vars</span>
+
+    <span class="n">yml_dict</span><span class="p">[</span><span class="s1">&#39;alpha&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;hosts&#39;</span><span class="p">:</span> <span class="n">alpha_hosts</span><span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">yml_dict</span></div>
+
+
+<div class="viewcode-block" id="create_main_inventory"><a class="viewcode-back" href="../../rho.html#rho.inventory_scan.create_main_inventory">[docs]</a><span class="k">def</span> <span class="nf">create_main_inventory</span><span class="p">(</span><span class="n">vault</span><span class="p">,</span> <span class="n">hosts</span><span class="p">,</span> <span class="n">port_map</span><span class="p">,</span> <span class="n">auth_map</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Write an inventory file given the results of host discovery.</span>
+
+<span class="sd">    :param vault: an Ansible vault to encrypt the results.</span>
+<span class="sd">    :param hosts: a list of hosts in the inventory.</span>
+<span class="sd">    :param port_map: a mapping from hosts to SSH port numbers.</span>
+<span class="sd">    :param auth_map: a mapping from hosts to SSH credentials.</span>
+<span class="sd">    :param path: the path to write the inventory.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">yml_dict</span> <span class="o">=</span> <span class="n">make_inventory_dict</span><span class="p">(</span><span class="n">hosts</span><span class="p">,</span> <span class="n">port_map</span><span class="p">,</span> <span class="n">auth_map</span><span class="p">)</span>
+    <span class="n">vault</span><span class="o">.</span><span class="n">dump_as_yaml_to_file</span><span class="p">(</span><span class="n">yml_dict</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+    <span class="n">ansible_utils</span><span class="o">.</span><span class="n">log_yaml_inventory</span><span class="p">(</span><span class="s1">&#39;Main inventory&#39;</span><span class="p">,</span> <span class="n">yml_dict</span><span class="p">)</span></div>
+
+
+<span class="c1"># pylint: disable=too-many-arguments</span>
+<div class="viewcode-block" id="inventory_scan"><a class="viewcode-back" href="../../rho.html#rho.inventory_scan.inventory_scan">[docs]</a><span class="k">def</span> <span class="nf">inventory_scan</span><span class="p">(</span><span class="n">hosts_yml_path</span><span class="p">,</span> <span class="n">facts_to_collect</span><span class="p">,</span> <span class="n">report_path</span><span class="p">,</span>
+                   <span class="n">vault_pass</span><span class="p">,</span> <span class="n">base_name</span><span class="p">,</span> <span class="n">forks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">scan_dirs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">log_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Run an inventory scan.</span>
+
+<span class="sd">    :param hosts_yml_path: path to an Ansible inventory file to scan.</span>
+<span class="sd">    :param facts_to_collect: a list of facts to collect.</span>
+<span class="sd">    :param report_path: the path to write a report to.</span>
+<span class="sd">    :param vault_pass: the vault password used to protect user data</span>
+<span class="sd">    :param base_name: the base name of the output files</span>
+<span class="sd">    :param forks: the number of Ansible forks, or None for default.</span>
+<span class="sd">    :param scan_dirs: the directories on the remote host to scan, or None for</span>
+<span class="sd">        default.</span>
+<span class="sd">    :param log_path: path to log to, or None for default.</span>
+<span class="sd">    :param verbosity: number of v&#39;s of Ansible verbosity.</span>
+
+<span class="sd">    :returns: True if scan completed successfully, False if not.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">hosts_yml</span> <span class="o">=</span> <span class="n">base_name</span> <span class="o">+</span> <span class="n">utilities</span><span class="o">.</span><span class="n">PROFILE_HOSTS_SUFIX</span>
+    <span class="n">hosts_yml_path</span> <span class="o">=</span> <span class="n">utilities</span><span class="o">.</span><span class="n">get_config_path</span><span class="p">(</span><span class="n">hosts_yml</span><span class="p">)</span>
+
+    <span class="n">ansible_vars</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;facts_to_collect&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">facts_to_collect</span><span class="p">),</span>
+                    <span class="s1">&#39;report_path&#39;</span><span class="p">:</span> <span class="n">report_path</span><span class="p">,</span>
+                    <span class="s1">&#39;scan_dirs&#39;</span><span class="p">:</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">scan_dirs</span> <span class="ow">or</span> <span class="p">[])}</span>
+
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">utilities</span><span class="o">.</span><span class="n">PLAYBOOK_DEV_PATH</span><span class="p">):</span>
+        <span class="n">playbook</span> <span class="o">=</span> <span class="n">utilities</span><span class="o">.</span><span class="n">PLAYBOOK_DEV_PATH</span>
+    <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">utilities</span><span class="o">.</span><span class="n">PLAYBOOK_RPM_PATH</span><span class="p">):</span>
+        <span class="n">playbook</span> <span class="o">=</span> <span class="n">utilities</span><span class="o">.</span><span class="n">PLAYBOOK_RPM_PATH</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">_</span><span class="p">(</span><span class="s2">&quot;rho scan playbook not found locally or in &#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span><span class="p">)</span>
+              <span class="o">%</span> <span class="n">playbook</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">cmd_string</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;ansible-playbook </span><span class="si">{playbook}</span><span class="s1"> &#39;</span>
+                  <span class="s1">&#39;-i </span><span class="si">{inventory}</span><span class="s1"> -f </span><span class="si">{forks}</span><span class="s1"> &#39;</span>
+                  <span class="s1">&#39;--ask-vault-pass &#39;</span>
+                  <span class="s1">&#39;--extra-vars </span><span class="se">\&#39;</span><span class="si">{vars}</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                      <span class="n">playbook</span><span class="o">=</span><span class="n">playbook</span><span class="p">,</span>
+                      <span class="n">inventory</span><span class="o">=</span><span class="n">hosts_yml_path</span><span class="p">,</span>
+                      <span class="n">forks</span><span class="o">=</span><span class="n">forks</span><span class="p">,</span>
+                      <span class="nb">vars</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">ansible_vars</span><span class="p">))</span>
+
+    <span class="n">log_path</span> <span class="o">=</span> <span class="n">log_path</span> <span class="ow">or</span> <span class="n">utilities</span><span class="o">.</span><span class="n">SCAN_LOG_PATH</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Running:&#39;</span><span class="p">,</span> <span class="n">cmd_string</span><span class="p">)</span>
+
+    <span class="n">my_env</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">my_env</span><span class="p">[</span><span class="s2">&quot;ANSIBLE_HOST_KEY_CHECKING&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;False&quot;</span>
+    <span class="n">my_env</span><span class="p">[</span><span class="s2">&quot;ANSIBLE_NOCOLOR&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;True&quot;</span>
+
+    <span class="n">process</span> <span class="o">=</span> <span class="n">ansible_utils</span><span class="o">.</span><span class="n">run_with_vault</span><span class="p">(</span>
+        <span class="n">cmd_string</span><span class="p">,</span> <span class="n">vault_pass</span><span class="p">,</span>
+        <span class="n">env</span><span class="o">=</span><span class="n">my_env</span><span class="p">,</span>
+        <span class="n">log_path</span><span class="o">=</span><span class="n">log_path</span><span class="p">,</span>
+        <span class="n">log_to_stdout</span><span class="o">=</span><span class="n">utilities</span><span class="o">.</span><span class="n">tail_host_scan</span><span class="p">,</span>
+        <span class="n">ansible_verbosity</span><span class="o">=</span><span class="n">verbosity</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">process</span><span class="o">.</span><span class="n">exitstatus</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">process</span><span class="o">.</span><span class="n">signalstatus</span> <span class="ow">is</span> <span class="kc">None</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">rho</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../command_syntax_usage.html">Command Syntax &amp; Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../command_example.html">Example rho Scan</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../remote_programs.html">Remote Programs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../functional_test.html">Functional Testing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../faq.html">Frequently Asked Questions (FAQ)</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Red Hat.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.5</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
