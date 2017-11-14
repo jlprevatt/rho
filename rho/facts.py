@@ -170,7 +170,7 @@ new_fact('jboss.eap.eap-home',
          is_default=True, categories=[JBOSS_FACTS])
 new_fact('jboss.eap.init-files',
          'Find system services that look JBoss-related',
-         is_default=True)
+         is_default=True, categories=[JBOSS_FACTS])
 new_fact('jboss.eap.installed-versions',
          'List of installed versions of JBoss EAP',
          is_default=False)
